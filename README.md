@@ -1,6 +1,6 @@
 # bitcoin-blk-file-reader
 Reads the blkXXXXX.dat files from bitcoind (Bitcoin-Core)
-The implementation is in python. 
+The implementation is in python and includes the witness format for the extended transaction format.
 
 ## Usage
 Normally your bitcoind client stores the blk files in $HOME/.bitcoin/blocks/
