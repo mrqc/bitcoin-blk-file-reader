@@ -8,12 +8,16 @@ import array
 import traceback
 
 def log(string):
-  print string
+  #print string
+  pass
 
 def startsWithOpNCode(pub):
-  intValue = int(pub[0:2], 16)
-  if intValue >= 1 and intValue <= 75:
-    return True
+  try:
+    intValue = int(pub[0:2], 16)
+    if intValue >= 1 and intValue <= 75:
+      return True
+  except:
+    pass
   return False
 
 def publicKeyDecode(pub):
@@ -108,16 +112,22 @@ def readOutput(blockFile):
   log("> Address: " + address)
 
 def readTransaction(blockFile):
+  extendedFormat = False
   beginByte = blockFile.tell()
   inputIds = []
   outputIds = []
   version = hexToInt(readIntLittleEndian(blockFile)) 
+  cutStart1 = blockFile.tell()
+  cutEnd1 = 0
   inputCount = readVarInt(blockFile)
   log("\n\n" + "Transaction")
   log("-" * 100)
   log("Version: " + str(version))
+
   if inputCount == 0:
+    extendedFormat = True
     flags = ord(blockFile.read(1))
+    cutEnd1 = blockFile.tell()
     if flags != 0:
       inputCount = readVarInt(blockFile)
       log("\nInput Count: " + str(inputCount))
@@ -126,14 +136,9 @@ def readTransaction(blockFile):
       outputCount = readVarInt(blockFile)
       for outputIndex in range(0, outputCount):
         outputIds.append(readOutput(blockFile))
-      if flags & 1:
-        for inputIndex in range(0, inputCount):
-          countOfStackItems = readVarInt(blockFile)
-          for stackItemIndex in range(0, countOfStackItems):
-            stackLength = readVarInt(blockFile)
-            stackItem = blockFile.read(stackLength)[::-1]
-            log("Witness item: " + hexToStr(stackItem))
   else:
+    cutStart1 = 0
+    cutEnd1 = 0
     log("\nInput Count: " + str(inputCount))
     for inputIndex in range(0, inputCount):
       inputIds.append(readInput(blockFile))
@@ -141,6 +146,19 @@ def readTransaction(blockFile):
     log("\nOutput Count: " + str(outputCount))
     for outputIndex in range(0, outputCount):
       outputIds.append(readOutput(blockFile))
+
+  cutStart2 = 0
+  cutEnd2 = 0
+  if extendedFormat:
+    if flags & 1:
+      cutStart2 = blockFile.tell()
+      for inputIndex in range(0, inputCount):
+        countOfStackItems = readVarInt(blockFile)
+        for stackItemIndex in range(0, countOfStackItems):
+          stackLength = readVarInt(blockFile)
+          stackItem = blockFile.read(stackLength)[::-1]
+          log("Witness item: " + hexToStr(stackItem))
+      cutEnd2 = blockFile.tell()
 
   lockTime = hexToInt(readIntLittleEndian(blockFile))
   if lockTime < 500000000:
@@ -152,11 +170,18 @@ def readTransaction(blockFile):
   blockFile.seek(beginByte)
   lengthToRead = endByte - beginByte
   dataToHashForTransactionId = blockFile.read(lengthToRead)
+  if extendedFormat and cutStart1 != 0 and cutEnd1 != 0 and cutStart2 != 0 and cutEnd2 != 0:
+    dataToHashForTransactionId = dataToHashForTransactionId[:(cutStart1 - beginByte)] + dataToHashForTransactionId[(cutEnd1 - beginByte):(cutStart2 - beginByte)] + dataToHashForTransactionId[(cutEnd2 - beginByte):]
+  elif extendedFormat:
+    print cutStart1, cutEnd1, cutStart2, cutEnd2
+    quit()
   firstHash = hashlib.sha256(dataToHashForTransactionId)
   secondHash = hashlib.sha256(firstHash.digest())
   hashLittleEndian = secondHash.hexdigest()
   hashTransaction = stringLittleEndianToBigEndian(binascii.unhexlify(hashLittleEndian))
   log("\nHash Transaction: " + hashTransaction)
+  if extendedFormat:
+    print hashTransaction
 
 def readBlock(blockFile):
   magicNumber = binascii.hexlify(blockFile.read(4))
