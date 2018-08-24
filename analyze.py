@@ -8,7 +8,7 @@ import array
 import traceback
 
 def log(string):
-  #print string
+  print string
   pass
 
 def startsWithOpNCode(pub):
